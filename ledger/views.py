@@ -116,6 +116,7 @@ class GetWalletView(generics.RetrieveAPIView):
 
 class FundWalletView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [UserThrottle]
 
     def post(self, request):
         serializer = FundSerializer(data=request.data)
@@ -124,8 +125,10 @@ class FundWalletView(APIView):
         try:
             url = FundingService.initiate_funding(request.user, amount)
         except PaystackError:
-            return Response({"detail": "Payment provider error."}, status=502)
-        return Response({"authorization_url": url}, status=201)
+            return Response(
+                {"detail": "Payment provider error."}, status=status.HTTP_502_BAD_GATEWAY
+            )
+        return Response({"authorization_url": url}, status=status.HTTP_201_CREATED)
 
 
 class PaystackWebhookView(APIView):
