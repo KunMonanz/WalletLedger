@@ -53,7 +53,8 @@ class Transaction(models.Model):
     type = models.CharField(max_length=20, choices=TransactionType.choices)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     amount = models.PositiveBigIntegerField()  # kobo
-    idempotency_key = models.CharField(max_length=255, unique=True)
+    idempotency_key = models.CharField(max_length=255, unique=True, db_index=True)
+    request_fingerprint = models.CharField(max_length=64, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -75,3 +76,16 @@ class LedgerEntry(models.Model):
             models.CheckConstraint(condition=Q(amount__gt=0), name="ledger_entry_amount_positive"),
         ]
         indexes = [models.Index(fields=["wallet", "created_at"])]
+
+
+class FundingIntent(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SUCCESSFUL = "successful", "Successful"
+
+    id = models.UUIDField(primary_key=True, default=uuid6.uuid7, editable=False)
+    reference = models.CharField(max_length=100, unique=True)
+    wallet = models.ForeignKey(Wallet, on_delete=models.PROTECT, related_name="funding_intents")
+    amount = models.PositiveBigIntegerField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
