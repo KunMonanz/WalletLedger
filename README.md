@@ -2,7 +2,7 @@
 
 A backend wallet and payments system built around a **double-entry ledger**, with Paystack integration, idempotent transfers, and concurrency-safe balance updates.
 
-Built as a portfolio project to demonstrate production-grade patterns for handling money: correctness under concurrent load, safe retries, and auditability — not just CRUD.
+Built as a portfolio project to demonstrate production-grade patterns for handling money: correctness under concurrent load, safe retries, and auditability.
 
 ## Why a ledger, not a balance column
 
