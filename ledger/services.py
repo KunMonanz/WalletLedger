@@ -7,7 +7,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import QuerySet
 
 from ledger import paystack
-from ledger.cache_handling import bump_ledger_version, ledgers_cache_key, wallet_cache
+from ledger.cache_handling import bump_ledger_version, wallet_cache
 from ledger.error import InsufficientFunds, InvalidTransfer
 from ledger.models import FundingIntent, LedgerEntry, Transaction, Wallet
 
@@ -106,6 +106,11 @@ class TransactionCommandService:
         txn.save(update_fields=["status", "updated_at"])
         return txn
 
+    def _mark_transaction_failure(self, txn: Transaction):
+        txn.status = Transaction.Status.FAILED
+        txn.save(update_fields=["status", "updated_at"])
+        return txn
+
 
 class TransactionQueryService:
     @staticmethod
@@ -200,6 +205,7 @@ class FundingService:
                 sender_id=clearing_id, recipient_id=intent.wallet_id
             )
             clearing, user_wallet = wallets[clearing_id], wallets[intent.wallet_id]
+
             txn = TransactionCommandService._create_transaction_entry(
                 transaction_type=Transaction.TransactionType.FUNDING,
                 amount=intent.amount,
@@ -232,6 +238,17 @@ class FundingService:
 
             transaction.on_commit(_invalidate)
 
+    def fail_funding(self, reference: str):
+        with transaction.atomic():
+            intent = FundingIntent.objects.select_for_update().get(reference=reference)
+            if intent.status == FundingIntent.Status.SUCCESSFUL:
+                return
+            self._mark_funding_intent_failure(intent)
+
     def _mark_funding_intent_successful(self, funding_intent: FundingIntent):
         funding_intent.status = FundingIntent.Status.SUCCESSFUL
+        funding_intent.save(update_fields=["status"])
+
+    def _mark_funding_intent_failure(self, funding_intent: FundingIntent):
+        funding_intent.status = FundingIntent.Status.FAILED
         funding_intent.save(update_fields=["status"])

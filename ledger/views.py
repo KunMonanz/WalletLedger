@@ -142,15 +142,30 @@ class PaystackWebhookView(APIView):
             settings.PAYSTACK_SECRET_KEY.encode(), request.body, hashlib.sha512
         ).hexdigest()
         if not hmac.compare_digest(signature, expected):
-            return Response(status=401)
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
 
-        payload = json.loads(request.body)
-        if payload.get("event") == "charge.success":
-            data = payload["data"]
-            try:
+        try:
+            payload = json.loads(request.body)
+        except json.JSONDecodeError:
+            return Response(
+                {"error": "Malformed json request sent"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        event = payload.get("event")
+        data = payload.get("data", {})
+        logger = logging.getLogger(__name__)
+
+        try:
+            if event == "charge.success":
                 FundingService().complete_funding(
                     data["reference"], data["amount"], data["currency"]
                 )
-            except FundingIntent.DoesNotExist:
-                logging.getLogger(__name__).warning("Unknown reference %s", data["reference"])
-        return Response(status=200)
+            elif event == "charge.failed":
+                FundingService().fail_funding(data["reference"])
+            else:
+                logger.info("Unhandled Paystack event: %s", event)
+        except FundingIntent.DoesNotExist:
+            logger.warning("Unknown reference for event %s: %s", event, data.get("reference"))
+        except KeyError:
+            logger.error("Malformed payload for event %s", event)
+
+        return Response(status=status.HTTP_200_OK)

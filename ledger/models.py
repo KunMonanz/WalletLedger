@@ -82,6 +82,7 @@ class FundingIntent(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         SUCCESSFUL = "successful", "Successful"
+        FAILED = "failed", "Failed"
 
     id = models.UUIDField(primary_key=True, default=uuid6.uuid7, editable=False)
     reference = models.CharField(max_length=100, unique=True)
