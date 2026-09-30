@@ -6,6 +6,7 @@ from ledger.views import (
     ListLedgerView,
     PaystackWebhookView,
     TransferToUserView,
+    VerifyFundingView,
 )
 
 urlpatterns = [
@@ -14,4 +15,5 @@ urlpatterns = [
     path("me/", GetWalletView.as_view(), name="get-wallet-view"),
     path("fund/", FundWalletView.as_view(), name="fund-wallet"),
     path("paystack/webhook/", PaystackWebhookView.as_view(), name="paystack-webhook"),
+    path("fund/<str:reference>/verify/", VerifyFundingView.as_view(), name="verify-funding"),
 ]

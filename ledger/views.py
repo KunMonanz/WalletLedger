@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from config.throttle import UserThrottle
+from ledger import paystack
 from ledger.cache_handling import ledgers_cache_key, wallet_cache
 from ledger.error import InsufficientFunds, InvalidTransfer
 from ledger.filters import LedgerEntryFilter
@@ -129,6 +130,31 @@ class FundWalletView(APIView):
                 {"detail": "Payment provider error."}, status=status.HTTP_502_BAD_GATEWAY
             )
         return Response({"authorization_url": url}, status=status.HTTP_201_CREATED)
+
+
+# ledger/views.py
+class VerifyFundingView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, reference):
+        try:
+            intent = FundingIntent.objects.get(reference=reference, wallet=request.user.wallet)
+        except FundingIntent.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if intent.status == FundingIntent.Status.PENDING:
+            try:
+                data = paystack.verify_payment(reference)
+            except PaystackError:
+                return Response({"status": intent.status}, status=status.HTTP_200_OK)
+            if data["status"] == "success":
+                FundingService().complete_funding(reference, data["amount"], data["currency"])
+                intent.refresh_from_db()
+            elif data["status"] in ("failed", "abandoned"):
+                FundingService().fail_funding(reference)
+                intent.refresh_from_db()
+
+        return Response({"status": intent.status}, status=status.HTTP_200_OK)
 
 
 class PaystackWebhookView(APIView):
