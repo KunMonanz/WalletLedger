@@ -16,6 +16,7 @@ from ledger.cache_handling import ledgers_cache_key, wallet_cache
 from ledger.error import InsufficientFunds, InvalidTransfer
 from ledger.filters import LedgerEntryFilter
 from ledger.models import FundingIntent, Wallet
+from ledger.pagination import LedgerPagination
 from ledger.paystack import PaystackError
 from ledger.serializer import (
     FundSerializer,
@@ -83,19 +84,21 @@ class ListLedgerView(generics.ListAPIView):
     serializer_class = LedgerEntrySerialiazer
     filter_backends = [DjangoFilterBackend]
     filterset_class = LedgerEntryFilter
+    pagination_class = LedgerPagination
 
     def get_queryset(self):
         wallet = self.request.user.wallet
         return LedgerQueryService.get_ledger_of_wallet(wallet)
 
     def list(self, request, *args, **kwargs):
-        current_user_wallet_id = request.user.wallet.id
-        cache_key = ledgers_cache_key(current_user_wallet_id)
+        wallet_id = request.user.wallet.id
+        query_string = "&".join(sorted(f"{k}={v}" for k, v in request.GET.items()))
+        cache_key = ledgers_cache_key(wallet_id, query_string)
         cached_data = cache.get(cache_key)
         if cached_data is not None:
             return Response(cached_data, status=status.HTTP_200_OK)
         response = super().list(request, *args, **kwargs)
-        cache.set(key=cache_key, value=response.data, timeout=300)
+        cache.set(cache_key, response.data, timeout=300)
         return response
 
 
